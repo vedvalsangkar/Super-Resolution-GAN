@@ -149,7 +149,6 @@ class Generator(nn.Module):
                                     bias=self.bias)
 
     def forward(self, x):
-
         skip_var = self.init_layer(x)
         out = self.blocks_layer(skip_var)
         out = self.intrim_layer(out)
@@ -184,3 +183,87 @@ class BasicDisBlock(nn.Module):
 
     def forward(self, x):
         return self.layer(x)
+
+
+class Discriminator(nn.Module):
+
+    def __init__(self, image_size=(2048, 1080), bias=False):
+        super(Discriminator, self).__init__()
+
+        self.k_size = 3
+        self.padding = self.k_size // 2
+        self.bias = bias
+
+        # else:
+        self.input_image_size = image_size
+        if len(image_size) != 2:
+            raise ValueError("Input Image size must be a tuple (Width x Height)")
+
+        self.flattened_feat = (self.input_image_size[0] // 16) * (self.input_image_size[1] // 16)
+
+        self.init_layer = nn.Sequential(nn.Conv2d(in_channels=3,
+                                                  out_channels=64,
+                                                  kernel_size=self.k_size,
+                                                  stride=1,
+                                                  padding=self.padding,
+                                                  bias=self.bias),
+                                        nn.LeakyReLU()
+                                        )
+
+        self.blocks_layer = nn.Sequential(BasicDisBlock(kernel_size=self.k_size,
+                                                        stride=2,
+                                                        in_channels=64,
+                                                        out_channels=64,
+                                                        bias=self.bias),
+                                          BasicDisBlock(kernel_size=self.k_size,
+                                                        stride=1,
+                                                        in_channels=64,
+                                                        out_channels=128,
+                                                        bias=self.bias),
+                                          BasicDisBlock(kernel_size=self.k_size,
+                                                        stride=2,
+                                                        in_channels=128,
+                                                        out_channels=128,
+                                                        bias=self.bias),
+                                          BasicDisBlock(kernel_size=self.k_size,
+                                                        stride=1,
+                                                        in_channels=128,
+                                                        out_channels=256,
+                                                        bias=self.bias),
+                                          BasicDisBlock(kernel_size=self.k_size,
+                                                        stride=2,
+                                                        in_channels=256,
+                                                        out_channels=256,
+                                                        bias=self.bias),
+                                          BasicDisBlock(kernel_size=self.k_size,
+                                                        stride=1,
+                                                        in_channels=256,
+                                                        out_channels=512,
+                                                        bias=self.bias),
+                                          BasicDisBlock(kernel_size=self.k_size,
+                                                        stride=2,
+                                                        in_channels=512,
+                                                        out_channels=512,
+                                                        bias=self.bias),
+                                          )
+
+        self.linear_layer = nn.Sequential(nn.Linear(in_features=self.flattened_feat,
+                                                    out_features=1024,
+                                                    bias=self.bias),
+                                          nn.LeakyReLU()
+                                          )
+
+        self.classifier = nn.Sequential(nn.Linear(in_features=1024,
+                                                  out_features=1,
+                                                  bias=self.bias),
+                                        nn.Sigmoid()
+                                        )
+
+    def forward(self, x):
+
+        out = self.init_layer(x)
+        out = self.blocks_layer(out)
+        out = self.linear_layer(out)
+        out = self.classifier(out)
+
+        return out
