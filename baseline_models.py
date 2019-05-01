@@ -51,7 +51,7 @@ class BasicGenBlock(nn.Module):
 
 class Generator(nn.Module):
 
-    def __init__(self, init_kernel_size=9, kernel_size=3, stride=1, channels=64, upscale_factor=2, bias=True):
+    def __init__(self, upscale_factor, init_kernel_size=9, kernel_size=3, stride=1, channels=64, bias=True):
         """
         Model initializer method.
 
