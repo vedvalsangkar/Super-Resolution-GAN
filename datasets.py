@@ -1,6 +1,7 @@
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from PIL import Image
+import pandas as pd
 
 import os
 
@@ -9,6 +10,32 @@ class TemplateDataSet(Dataset):
 
     def __init__(self):
         pass
+
+    def __getitem__(self, item):
+        pass
+
+    def __len__(self):
+        pass
+
+
+class DIVFlickrDataSet(Dataset):
+
+    def __init__(self, root_folder, lr_transform=transforms.ToTensor(), hr_transform=transforms.ToTensor()):
+        self.root_image_folder = root_folder
+        self.DIV_HR_folder = root_folder + "DIV_HR/"
+        self.DIV_LR_folder = root_folder + "DIV_LR/"
+        self.Flickr_HR_folder = root_folder + "Flickr_HR/"
+        self.Flickr_LR_folder = root_folder + "Flickr_LR/"
+
+        self.DIV_df = pd.DataFrame(data={"HD": sorted(os.listdir(self.DIV_HR_folder)),
+                                         "LD": sorted(os.listdir(self.DIV_LR_folder))}
+                                   )
+
+        self.Flickr_df = pd.DataFrame(data={"HD": sorted(os.listdir(self.Flickr_HR_folder)),
+                                            "LD": sorted(os.listdir(self.Flickr_LR_folder))}
+                                      )
+
+        self.main_df = pd.concat([self.DIV_df, self.Flickr_df], axis=0)
 
     def __getitem__(self, item):
         pass

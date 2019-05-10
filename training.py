@@ -1,8 +1,13 @@
+# https://github.com/aitorzip/PyTorch-SRGAN
+
 import torch
 from torch import nn, cuda, optim
 from torch.utils.data import DataLoader
+from PIL import Image
+from matplotlib import pyplot as plt
+import numpy as np
 
-from torchsummary import summary
+# from torchsummary import summary
 
 import time
 
@@ -22,9 +27,9 @@ def main():
 
     learning_rate = 0.001
     lamb = 0
-    epochs = 1000
+    epochs = 0
 
-    batch_size = 1
+    batch_size = 2
     batch_print = 20
 
     nll_loss_factor = 0.001
@@ -38,7 +43,7 @@ def main():
 
     device = torch.device("cuda:0" if cuda.is_available() else "cpu")
 
-    training_set = Set5DataSet(im_set=2)
+    training_set = Set5DataSet(im_set=4)
 
     train_loader = DataLoader(dataset=training_set,
                               batch_size=batch_size,
@@ -63,9 +68,9 @@ def main():
                            )
 
     gen_mse_criterion = nn.MSELoss()
-    gen_nll_criterion = nn.NLLLoss()
+    # gen_nll_criterion = nn.NLLLoss()
     # dis_criterion = nn.NLLLoss()
-    dis_criterion = nn.NLLLoss()
+    dis_criterion = nn.BCELoss()
 
     # ----------------------------------------------------------------------------------
 
@@ -86,8 +91,10 @@ def main():
     #       4.2 Pass on SR to DIS with label 1.
     #       4.3 Add losses and backprop.
 
-    label_0 = torch.tensor(0).to(device)
-    label_1 = torch.tensor(1).to(device)
+    label_0 = torch.tensor(0).expand(batch_size).to(device)
+    label_1 = torch.tensor(1).expand(batch_size).to(device)
+
+    print("LABEL_0:", label_0)
 
     for epoch in range(epochs):
 
@@ -156,7 +163,7 @@ def main():
             #
             sr_output = dis(super_res)
 
-            gen_nll_loss = gen_nll_criterion(sr_output, label_1)
+            gen_nll_loss = dis_criterion(sr_output, label_1)
 
             #
             # 4.3 Add losses and backprop.
@@ -169,6 +176,41 @@ def main():
     train_time = time.time()
     print("\nTraining completed in {0} sec\n".format(train_time - start_time))
     # ----------------------------------------------------------------------------------
+    gen_2x.eval()
+    dis.eval()
+
+    for i, (low_res, high_res) in enumerate(train_loader):
+
+        output = gen_2x(low_res.to(device))
+
+        image = output.detach().cpu().numpy()[0]
+        ref = high_res[0].numpy()
+
+        image = np.rollaxis(image, 0, 3)
+        ref = np.rollaxis(ref, 0, 3)
+
+        print("IMAGE:", image.shape)
+        print("REF:", ref.shape)
+
+        plt.figure()
+
+        plt.subplot(2, 1, 1)
+
+        plt.imshow(image)
+
+        # plt.xlabel('time (s)')
+        # plt.ylabel('voltage (mV)')
+        plt.title('Super Resolution Image')
+
+        plt.subplot(2, 1, 2)
+
+        plt.imshow(ref)
+
+        # plt.xlabel('time (s)')
+        # plt.ylabel('voltage (mV)')
+        plt.title('Original High Resolution Image')
+
+        plt.show()
 
 
 if __name__ == '__main__':
