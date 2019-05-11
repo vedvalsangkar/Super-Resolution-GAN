@@ -12,7 +12,7 @@ import numpy as np
 import time
 
 from baseline_models import Generator, Discriminator
-from datasets import Set5DataSet
+from datasets import DIVFlickrDataSet
 
 
 def main():
@@ -43,7 +43,8 @@ def main():
 
     device = torch.device("cuda:0" if cuda.is_available() else "cpu")
 
-    training_set = Set5DataSet(im_set=4)
+    # training_set = Set5DataSet(im_set=4)
+    training_set = DIVFlickrDataSet(root_folder="Data/DIV_Flickr/train/")
 
     train_loader = DataLoader(dataset=training_set,
                               batch_size=batch_size,
