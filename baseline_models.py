@@ -177,7 +177,7 @@ class BasicDisBlock(nn.Module):
                                              stride=self.stride,
                                              padding=self.padding,
                                              bias=self.bias),
-                                   nn.BatchNorm2d(self.in_channels),
+                                   nn.BatchNorm2d(self.out_channels),
                                    nn.LeakyReLU(),
                                    )
 
@@ -199,7 +199,7 @@ class Discriminator(nn.Module):
         if len(image_size) != 2:
             raise ValueError("Input Image size must be a tuple (Width x Height)")
 
-        self.flattened_feat = (self.input_image_size[0] // 16) * (self.input_image_size[1] // 16)
+        self.flattened_feat = (self.input_image_size[0] // 16) * (self.input_image_size[1] // 16) * 512
 
         self.init_layer = nn.Sequential(nn.Conv2d(in_channels=3,
                                                   out_channels=64,
@@ -263,6 +263,8 @@ class Discriminator(nn.Module):
 
         out = self.init_layer(x)
         out = self.blocks_layer(out)
+        out = out.view(out.shape[0], -1)
+        # print("OUT SHAPE:", out.shape)
         out = self.linear_layer(out)
         out = self.classifier(out)
 

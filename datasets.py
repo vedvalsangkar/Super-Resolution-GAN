@@ -1,3 +1,4 @@
+import torch
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from PIL import Image
@@ -20,12 +21,14 @@ class TemplateDataSet(Dataset):
 
 class DIVFlickrDataSet(Dataset):
 
-    def __init__(self, root_folder, lr_transform=transforms.ToTensor(), hr_transform=transforms.ToTensor()):
+    def __init__(self, root_folder, lr_transform=transforms.ToTensor(), hr_transform=transforms.ToTensor(), test_mode=False):
         self.root_image_folder = root_folder   # Data/DIV_Flickr/train/
         self.DIV_HR_folder = root_folder + "DIV_HR/"
         self.DIV_LR_folder = root_folder + "DIV_LR/"
         self.Flickr_HR_folder = root_folder + "Flickr_HR/"
         self.Flickr_LR_folder = root_folder + "Flickr_LR/"
+
+        self.test_mode = test_mode
 
         self.lr_transform = lr_transform
         self.hr_transform = hr_transform
@@ -40,6 +43,9 @@ class DIVFlickrDataSet(Dataset):
                                             "LD": sorted(os.listdir(self.Flickr_LR_folder))}
                                       )
 
+        self.Flickr_df["HD"] = self.Flickr_HR_folder + self.Flickr_df["HD"]
+        self.Flickr_df["LD"] = self.Flickr_LR_folder + self.Flickr_df["LD"]
+
         self.main_df = pd.concat([self.DIV_df, self.Flickr_df], axis=0)
 
         self.length = self.main_df.shape[0]
@@ -48,10 +54,17 @@ class DIVFlickrDataSet(Dataset):
 
         row = self.main_df.iloc[item, :]
 
-        low_res = Image.open(row["LD"])
-        high_res = Image.open(row["HD"])
+        try:
+            low_res = Image.open(row["LD"])
+            high_res = Image.open(row["HD"])
+        except FileNotFoundError:
+            print("File not found:", row)
 
-        return self.lr_transform(low_res), self.hr_transform(high_res)
+        if self.test_mode:
+            filename = os.path.splitext(os.path.basename(row["LD"]))[0]
+            return self.lr_transform(low_res), self.hr_transform(high_res), filename
+        else:
+            return self.lr_transform(low_res), self.hr_transform(high_res), torch.tensor(0.0), torch.tensor(1.0)
 
     def __len__(self):
         return self.length
