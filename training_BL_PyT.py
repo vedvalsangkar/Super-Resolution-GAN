@@ -4,9 +4,10 @@ import torch
 from torch import nn, cuda, optim
 from torch.utils.data import DataLoader
 import torchvision.models as models
-from PIL import Image
 from torchsummary import summary
+from torchvision.utils import save_image
 
+from PIL import Image
 from matplotlib import pyplot as plt
 import time
 
@@ -22,6 +23,8 @@ def main(input_args):
 
     verbose = True
     # verbose = input_args.verbose
+
+    use_vgg = args.vgg
 
     img_size = (224, 224)
 
@@ -86,9 +89,9 @@ def main(input_args):
     # dis_criterion = nn.NLLLoss()
     dis_criterion = nn.BCELoss()
 
-    percept_model = models.vgg19(pretrained=True).to(device).features
-
-    percept_model.eval()
+    if use_vgg:
+        percept_model = models.vgg19(pretrained=True).to(device).features
+        percept_model.eval()
 
     # ----------------------------------------------------------------------------------
 
@@ -100,7 +103,8 @@ def main(input_args):
 
         summary(gen_4x, (3, 56, 56), batch_size)
         summary(dis, (3, 224, 224), batch_size)
-        summary(percept_model, (3, 224, 224), batch_size)
+        if use_vgg:
+            summary(percept_model, (3, 224, 224), batch_size)
 
     start_time = time.time()
 
@@ -197,12 +201,15 @@ def main(input_args):
                 # This step can be pixel-wise loss or perceptual loss.
                 #
 
-                gen_feat_loss = gen_mse_criterion(super_res, high_res)
-                # with torch.no_grad():
-                #     sr_features = percept_model(super_res)
-                #     hr_features = percept_model(high_res)
+                if use_vgg:
+                    with torch.no_grad():
+                        sr_features = percept_model(super_res)
+                        hr_features = percept_model(high_res)
 
-                # gen_feat_loss = gen_mse_criterion(sr_features, hr_features)
+                    gen_feat_loss = gen_mse_criterion(sr_features, hr_features)
+                else:
+                    gen_feat_loss = gen_mse_criterion(super_res, high_res)
+
                 disp_loss_gen_feat += gen_feat_loss.item()
 
                 #
@@ -258,26 +265,22 @@ def main(input_args):
         # print("IMAGE:", image.shape)
         # print("REF:", ref.shape)
 
-        plt.figure()
+        # plt.figure()
+        #
+        # plt.subplot(1, 2, 1)
+        # plt.imshow(image)
+        # plt.title('Super Resolution Image')
+        #
+        # plt.subplot(1, 2, 2)
+        # plt.imshow(ref)
+        # plt.title('Original High Resolution Image')
+        #
+        # plt.savefig("Output Images/SR_{0}.jpg".format(name[0]))
 
-        plt.subplot(1, 2, 1)
-
-        plt.imshow(image)
-
-        # plt.xlabel('time (s)')
-        # plt.ylabel('voltage (mV)')
-        plt.title('Super Resolution Image')
-
-        plt.subplot(1, 2, 2)
-
-        plt.imshow(ref)
-
-        # plt.xlabel('time (s)')
-        # plt.ylabel('voltage (mV)')
-        plt.title('Original High Resolution Image')
-
-        # plt.show()
-        plt.savefig("Output Images/SR_{0}.jpg".format(name[0]))
+        save_image(tensor=[image, ref],
+                   filename="Output Images/SR_{0}.jpg".format(name[0]),
+                   nrow=2,
+                   normalize=True)
 
 
 if __name__ == '__main__':
@@ -287,41 +290,46 @@ if __name__ == '__main__':
     parser.add_argument("-b",
                         "--batch-size",
                         type=int,
-                        default=1,
-                        help="Batch Size (default 2)."
+                        default=4,
+                        help="Batch Size (default 4)."
                         )
 
     parser.add_argument("-e",
                         "--num-epochs",
                         type=int,
                         default=10,
-                        help="Number of epochs (default 3)."
+                        help="Number of epochs (default 10)."
                         )
 
     parser.add_argument("--lr",
                         "--learning-rate",
                         type=float,
                         default=0.001,
-                        help="Initial learning rate (default 0.01)"
+                        help="Initial learning rate (default 0.001)"
                         )
 
     parser.add_argument("-d",
                         "--lr-decay",
                         type=float,
                         default=0.995,
-                        help="Learning rate decay (default 0.95)"
+                        help="Learning rate decay (default 0.995)"
                         )
 
     parser.add_argument("-w",
                         "--weight-decay",
                         type=float,
                         default=0.995,
-                        help="Learning rate decay (default 0.95)"
+                        help="Learning rate decay (default 0.995)"
                         )
 
     parser.add_argument("-v",
                         "--verbose",
                         help="Verbose Output",
+                        action="store_true"
+                        )
+
+    parser.add_argument("--vgg",
+                        help="Use VGG to calculate features before MSE loss",
                         action="store_true"
                         )
 
