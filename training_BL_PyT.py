@@ -197,12 +197,12 @@ def main(input_args):
                 # This step can be pixel-wise loss or perceptual loss.
                 #
 
-                # gen_feat_loss = gen_mse_criterion(super_res, high_res)
-                with torch.no_grad():
-                    sr_features = percept_model(super_res)
-                    hr_features = percept_model(high_res)
+                gen_feat_loss = gen_mse_criterion(super_res, high_res)
+                # with torch.no_grad():
+                #     sr_features = percept_model(super_res)
+                #     hr_features = percept_model(high_res)
 
-                gen_feat_loss = gen_mse_criterion(sr_features, hr_features)
+                # gen_feat_loss = gen_mse_criterion(sr_features, hr_features)
                 disp_loss_gen_feat += gen_feat_loss.item()
 
                 #
@@ -277,7 +277,7 @@ def main(input_args):
         plt.title('Original High Resolution Image')
 
         # plt.show()
-        plt.savefig("Output Images/SR_{0}.jpg".format(name))
+        plt.savefig("Output Images/SR_{0}.jpg".format(name[0]))
 
 
 if __name__ == '__main__':
