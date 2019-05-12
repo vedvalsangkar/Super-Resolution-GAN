@@ -256,11 +256,11 @@ def main(input_args):
     for i, (low_res, high_res, name) in enumerate(test_loader):
         output = gen_4x(low_res.to(device))
 
-        image = output.detach().cpu().numpy()[0]
-        ref = high_res[0].numpy()
+        image = output.detach().cpu()[0]
+        ref = high_res[0]
 
-        image = np.rollaxis(image, 0, 3)
-        ref = np.rollaxis(ref, 0, 3)
+        # image = np.rollaxis(image, 0, 3)
+        # ref = np.rollaxis(ref, 0, 3)
 
         # print("IMAGE:", image.shape)
         # print("REF:", ref.shape)
@@ -277,7 +277,7 @@ def main(input_args):
         #
         # plt.savefig("Output Images/SR_{0}.jpg".format(name[0]))
 
-        save_image(tensor=[image, ref],
+        save_image(tensor=torch.stack([image, ref]),
                    filename="Output Images/SR_{0}.jpg".format(name[0]),
                    nrow=2,
                    normalize=True)
@@ -290,14 +290,14 @@ if __name__ == '__main__':
     parser.add_argument("-b",
                         "--batch-size",
                         type=int,
-                        default=4,
+                        default=1,
                         help="Batch Size (default 4)."
                         )
 
     parser.add_argument("-e",
                         "--num-epochs",
                         type=int,
-                        default=10,
+                        default=0,
                         help="Number of epochs (default 10)."
                         )
 
