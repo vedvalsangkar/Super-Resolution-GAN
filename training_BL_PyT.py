@@ -37,11 +37,14 @@ def main(input_args):
     batch_size = input_args.batch_size
     batch_print = 20
 
-    nll_loss_factor = 0.001
+    nll_loss_factor = input_args.adv_loss_factor
 
     sgd_momentum = 0.3
+    sgd_nesterov = False
 
     op_dir = "models/"
+
+    timestamp = time.strftime("%Y%M%d:%H%M%S")
     # ----------------------------------------------------------------------------------
 
     # --------------------------------- Fetching model ---------------------------------
@@ -82,6 +85,12 @@ def main(input_args):
                            weight_decay=lamb,
                            amsgrad=False
                            )
+    dis_optim = optim.SGD(params=dis.parameters(),
+                          lr=learning_rate,
+                          momentum=sgd_momentum,
+                          weight_decay=lamb,
+                          nesterov=sgd_nesterov
+                          )
 
     gen_mse_criterion = nn.MSELoss()
     # vgg_mse_criterion = nn.MSELoss()
@@ -97,14 +106,14 @@ def main(input_args):
 
     # ------------------------------- Start of training --------------------------------
     if verbose:
-        print("\nStart of training.")
-        print("Total epochs: {0}".format(epochs))
-        print("Start time:", time.asctime())
-
         summary(gen_4x, (3, 56, 56), batch_size)
         summary(dis, (3, 224, 224), batch_size)
         if use_vgg:
             summary(percept_model, (3, 224, 224), batch_size)
+
+        print("\nStart of training.")
+        print("Total epochs: {0}".format(epochs))
+        print("Start time:", time.asctime())
 
     start_time = time.time()
 
@@ -202,9 +211,9 @@ def main(input_args):
                 #
 
                 if use_vgg:
-                    with torch.no_grad():
-                        sr_features = percept_model(super_res)
-                        hr_features = percept_model(high_res)
+                    # with torch.no_grad():
+                    sr_features = percept_model(super_res)
+                    hr_features = percept_model(high_res)
 
                     gen_feat_loss = gen_mse_criterion(sr_features, hr_features)
                 else:
@@ -235,7 +244,7 @@ def main(input_args):
                     disp_loss_gen_feat /= batch_print
                     disp_total_loss /= batch_print
                     print(
-                        "\rEpoch: {4}, Batch: {5}/{6} || DIS Loss = {0:.4f}, Gen CLS Loss = {1:.4f}, Gen MSE Loss= {2:.4f}, Total Gen Loss: {3:.4f}        ".format(
+                        "\rEpoch: {4}, Batch: {5}/{6} || DIS Loss = {0:.4f}, Gen CLS Loss = {1:.4f}, Gen MSE Loss= {2:.4f}, Total Gen Loss: {3:.4f}    ".format(
                             disp_loss_dis_bce, disp_loss_gen_class, disp_loss_gen_feat, disp_total_loss, epoch, i + 1,
                             tot_len), end="")
 
@@ -252,6 +261,11 @@ def main(input_args):
     # ----------------------------------------------------------------------------------
     gen_4x.eval()
     dis.eval()
+
+    torch.save(obj={"generator": gen_4x,
+                    "discriminator": dis},
+               f=op_dir + "file_{0}_.pt".format(timestamp)
+               )
 
     for i, (low_res, high_res, name) in enumerate(test_loader):
         output = gen_4x(low_res.to(device))
@@ -278,26 +292,25 @@ def main(input_args):
         # plt.savefig("Output Images/SR_{0}.jpg".format(name[0]))
 
         save_image(tensor=torch.stack([image, ref]),
-                   filename="Output Images/SR_{0}.jpg".format(name[0]),
+                   filename="Output Images/{0}/SR_{1}.jpg".format(timestamp, name[0]),
                    nrow=2,
                    normalize=True)
 
 
 if __name__ == '__main__':
-
     parser = ap.ArgumentParser()
 
     parser.add_argument("-b",
                         "--batch-size",
                         type=int,
-                        default=1,
+                        default=16,
                         help="Batch Size (default 4)."
                         )
 
     parser.add_argument("-e",
                         "--num-epochs",
                         type=int,
-                        default=0,
+                        default=10,
                         help="Number of epochs (default 10)."
                         )
 
@@ -318,8 +331,8 @@ if __name__ == '__main__':
     parser.add_argument("-w",
                         "--weight-decay",
                         type=float,
-                        default=0.995,
-                        help="Learning rate decay (default 0.995)"
+                        default=0,
+                        help="Learning rate decay (default 0)"
                         )
 
     parser.add_argument("-v",
@@ -331,6 +344,13 @@ if __name__ == '__main__':
     parser.add_argument("--vgg",
                         help="Use VGG to calculate features before MSE loss",
                         action="store_true"
+                        )
+
+    parser.add_argument("-a",
+                        "--adv-loss-factor",
+                        type=float,
+                        default=0.001,
+                        help="Factor to determine effect of adversarial loss (default 0.001)"
                         )
 
     args = parser.parse_args()
