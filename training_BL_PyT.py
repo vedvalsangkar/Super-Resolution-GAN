@@ -9,10 +9,10 @@ from torchvision.utils import save_image
 
 from PIL import Image
 from matplotlib import pyplot as plt
-import time
 
-import numpy as np
+import time
 import argparse as ap
+from os import mkdir
 
 from baseline_models import Generator, Discriminator
 from datasets import DIVFlickrDataSet
@@ -42,7 +42,7 @@ def main(input_args):
     sgd_momentum = 0.3
     sgd_nesterov = False
 
-    op_dir = "models/"
+    op_models_dir = "models/"
 
     timestamp = time.strftime("%Y%M%d:%H%M%S")
     # ----------------------------------------------------------------------------------
@@ -80,11 +80,11 @@ def main(input_args):
                            amsgrad=False
                            )
 
-    dis_optim = optim.Adam(params=dis.parameters(),
-                           lr=learning_rate,
-                           weight_decay=lamb,
-                           amsgrad=False
-                           )
+    # dis_optim = optim.Adam(params=dis.parameters(),
+    #                        lr=learning_rate,
+    #                        weight_decay=lamb,
+    #                        amsgrad=False
+    #                        )
     dis_optim = optim.SGD(params=dis.parameters(),
                           lr=learning_rate,
                           momentum=sgd_momentum,
@@ -143,7 +143,10 @@ def main(input_args):
     for epoch in range(epochs):
 
         if verbose:
-            print("\nTime:", time.asctime())
+            # print("\nTime:", time.asctime())
+            print("")
+        else:
+            print("")
 
         for i, (low_res, high_res, label_0, label_1) in enumerate(train_loader):
             try:
@@ -262,10 +265,14 @@ def main(input_args):
     gen_4x.eval()
     dis.eval()
 
-    torch.save(obj={"generator": gen_4x,
-                    "discriminator": dis},
-               f=op_dir + "file_{0}_.pt".format(timestamp)
+    torch.save(obj={"generator": gen_4x.state_dict(),
+                    "discriminator": dis.state_dict()
+                    },
+               f=op_models_dir + "file_{0}_{1}.pt".format(timestamp, "VGG" if use_vgg else "RAW")
                )
+
+    op_img_dir = "Output Images/{0}/".format(timestamp)
+    mkdir(op_img_dir)
 
     for i, (low_res, high_res, name) in enumerate(test_loader):
         output = gen_4x(low_res.to(device))
@@ -292,7 +299,7 @@ def main(input_args):
         # plt.savefig("Output Images/SR_{0}.jpg".format(name[0]))
 
         save_image(tensor=torch.stack([image, ref]),
-                   filename="Output Images/{0}/SR_{1}.jpg".format(timestamp, name[0]),
+                   filename=op_img_dir+"SR_{0}.jpg".format(name[0]),
                    nrow=2,
                    normalize=True)
 
