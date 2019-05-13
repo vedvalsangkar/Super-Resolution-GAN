@@ -7,9 +7,6 @@ import torchvision.models as models
 from torchsummary import summary
 from torchvision.utils import save_image
 
-from PIL import Image
-from matplotlib import pyplot as plt
-
 import time
 import argparse as ap
 import pandas as pd
@@ -23,13 +20,15 @@ from datasets import DIVFlickrDataSet
 def main(input_args):
     # -------------------------------- Hyper-parameters --------------------------------
 
-    verbose = True
-    # verbose = input_args.verbose
+    # verbose = True
+    verbose = input_args.verbose
 
     use_enhancement = args.enhancement
     use_vgg = args.vgg
     use_hybrid = args.hybrid
     use_kl = args.kl
+
+    vgg_loss_factor = 0.01
 
     img_size = (224, 224)
 
@@ -42,7 +41,7 @@ def main(input_args):
     batch_size = input_args.batch_size
     batch_print = 20
 
-    nll_loss_factor = input_args.adv_loss_factor
+    adv_loss_factor = input_args.adv_loss_factor
 
     sgd_momentum = 0.1
     sgd_nesterov = False
@@ -58,10 +57,6 @@ def main(input_args):
 
     device = torch.device("cuda:0" if cuda.is_available() else "cpu")
 
-    if verbose:
-        pass
-
-    # training_set = Set5DataSet(im_set=4)
     training_set = DIVFlickrDataSet(root_folder="Data/DIV_Flickr/train/")
 
     train_loader = DataLoader(dataset=training_set,
@@ -90,11 +85,6 @@ def main(input_args):
                            amsgrad=False
                            )
 
-    # dis_optim = optim.Adam(params=dis.parameters(),
-    #                        lr=learning_rate,
-    #                        weight_decay=lamb,
-    #                        amsgrad=False
-    #                        )
     dis_optim = optim.SGD(params=dis.parameters(),
                           lr=learning_rate,
                           momentum=sgd_momentum,
@@ -106,8 +96,7 @@ def main(input_args):
         gen_content_criterion = nn.KLDivLoss()
     else:
         gen_content_criterion = nn.MSELoss()
-    # gen_nll_criterion = nn.NLLLoss()
-    # dis_criterion = nn.NLLLoss()
+
     dis_criterion = nn.BCELoss()
 
     if use_vgg:
@@ -140,11 +129,6 @@ def main(input_args):
     #       4.2 Pass on SR to DIS with label 1.
     #       4.3 Add losses and backprop.
 
-    # label_0 = torch.tensor(0.0).expand(batch_size, 1).to(device)
-    # label_1 = torch.tensor(1.0).expand(batch_size, 1).to(device)
-
-    # print("LABEL_0:", label_0)
-
     disp_loss_dis_bce = 0
     disp_loss_gen_class = 0
     disp_loss_gen_feat = 0
@@ -156,128 +140,123 @@ def main(input_args):
 
     for epoch in range(epochs):
 
-        if verbose:
-            # print("\nTime:", time.asctime())
-            print("")
-        else:
-            print("")
+        print("")
 
         for i, (low_res, high_res, label_0, label_1) in enumerate(train_loader):
-            try:
-                low_res = low_res.to(device)
-                high_res = high_res.to(device)
-                label_0 = label_0.to(device).view(-1, 1)
-                label_1 = label_1.to(device).view(-1, 1)
+            # try:
+            low_res = low_res.to(device)
+            high_res = high_res.to(device)
+            label_0 = label_0.to(device).view(-1, 1)
+            label_1 = label_1.to(device).view(-1, 1)
 
-                #
-                # 1. Set generator to eval() and discriminator to train().
-                #
-                gen_4x.eval()
-                dis.train()
+            #
+            # 1. Set generator to eval() and discriminator to train().
+            #
+            gen_4x.eval()
+            dis.train()
 
-                gen_optim.zero_grad()
-                dis_optim.zero_grad()
+            gen_optim.zero_grad()
+            dis_optim.zero_grad()
 
-                #
-                # 2. Give LR input to GEN and get SR.
-                #
-                super_res = gen_4x(low_res)
+            #
+            # 2. Give LR input to GEN and get SR.
+            #
+            super_res = gen_4x(low_res)
 
-                #
-                # 2.1 Pass on SR to DIS with label 0. <Calc backprop?>
-                #
-                sr_output = dis(super_res)
+            #
+            # 2.1 Pass on SR to DIS with label 0. <Calc backprop?>
+            #
+            sr_output = dis(super_res)
 
-                dis_loss = dis_criterion(sr_output, label_0 + offset)
-                disp_loss_dis_bce += dis_loss.item()
+            dis_loss = dis_criterion(sr_output, label_0 + offset)
+            disp_loss_dis_bce += dis_loss.item()
 
-                dis_loss.backward()
-                dis_optim.step()
+            dis_loss.backward()
+            dis_optim.step()
 
-                #
-                # 2.2 Pass HR to DIS with label 1. Calc backprop.
-                #
-                hr_output = dis(high_res)
+            #
+            # 2.2 Pass HR to DIS with label 1. Calc backprop.
+            #
+            hr_output = dis(high_res)
 
-                dis_optim.zero_grad()
+            dis_optim.zero_grad()
 
-                dis_loss = dis_criterion(hr_output, label_1 - offset)
-                disp_loss_dis_bce += dis_loss.item()
+            dis_loss = dis_criterion(hr_output, label_1 - offset)
+            disp_loss_dis_bce += dis_loss.item()
 
-                dis_loss.backward()
-                dis_optim.step()
+            dis_loss.backward()
+            dis_optim.step()
 
-                # ---------------------------------------------------------------------------------------------------------
-                #
-                # 3. Set DIS to eval() and GEN to train().
-                #
-                gen_4x.train()
-                dis.eval()
+            # ---------------------------------------------------------------------------------------------------------
+            #
+            # 3. Set DIS to eval() and GEN to train().
+            #
+            gen_4x.train()
+            dis.eval()
 
-                gen_optim.zero_grad()
-                dis_optim.zero_grad()
+            gen_optim.zero_grad()
+            dis_optim.zero_grad()
 
-                #
-                # 4. Pass LR input to GEN. Get SR.
-                #
-                super_res = gen_4x(low_res)
+            #
+            # 4. Pass LR input to GEN. Get SR.
+            #
+            super_res = gen_4x(low_res)
 
-                #
-                # 4.1 Calculate MSELoss() between SR and HR.
-                # This step can be pixel-wise loss or perceptual loss.
-                #
+            #
+            # 4.1 Calculate MSELoss() between SR and HR.
+            # This step can be pixel-wise loss or perceptual loss.
+            #
 
-                if use_vgg:
-                    # with torch.no_grad():
-                    sr_features = percept_model(super_res)
-                    hr_features = percept_model(high_res)
+            if use_vgg:
+                sr_features = percept_model(super_res)
+                hr_features = percept_model(high_res)
 
-                    gen_feat_loss = gen_content_criterion(sr_features, hr_features)
+                gen_feat_loss = gen_content_criterion(sr_features, hr_features)
 
-                    if use_hybrid:
+                if use_hybrid:
 
-                        gen_feat_loss = 0.01 * gen_feat_loss + gen_content_criterion(super_res, high_res)
+                    gen_feat_loss = vgg_loss_factor * gen_feat_loss + gen_content_criterion(super_res, high_res)
 
-                else:
-                    gen_feat_loss = gen_content_criterion(super_res, high_res)
+            else:
+                gen_feat_loss = gen_content_criterion(super_res, high_res)
 
-                disp_loss_gen_feat += gen_feat_loss.item()
+            disp_loss_gen_feat += gen_feat_loss.item()
 
-                #
-                # 4.2 Pass on SR to DIS with label 1.
-                #
-                sr_output = dis(super_res)
+            #
+            # 4.2 Pass on SR to DIS with label 1.
+            #
+            sr_output = dis(super_res)
 
-                gen_class_loss = dis_criterion(sr_output, label_1)
-                disp_loss_gen_class += gen_class_loss.item()
+            gen_class_loss = dis_criterion(sr_output, label_1)
+            disp_loss_gen_class += gen_class_loss.item()
 
-                #
-                # 4.3 Add losses and backprop.
-                #
-                total_loss = gen_feat_loss + (gen_class_loss * nll_loss_factor)
-                disp_total_loss += total_loss.item()
+            #
+            # 4.3 Add losses and backprop.
+            #
+            total_loss = gen_feat_loss + (gen_class_loss * adv_loss_factor)
+            disp_total_loss += total_loss.item()
 
-                total_loss.backward()
-                gen_optim.step()
+            total_loss.backward()
+            gen_optim.step()
 
-                if (i + 1) % batch_print == 0:
-                    disp_loss_dis_bce /= batch_print
-                    disp_loss_gen_class /= batch_print
-                    disp_loss_gen_feat /= batch_print
-                    disp_total_loss /= batch_print
-                    print(
-                        "\rEpoch: {4}, Batch: {5}/{6} || DIS Loss = {0:.4f}, Gen CLS Loss = {1:.4f}, Gen MSE Loss= {2:.4f}, Total Gen Loss: {3:.4f}    ".format(
-                            disp_loss_dis_bce, disp_loss_gen_class, disp_loss_gen_feat, disp_total_loss, epoch + 1, i + 1,
-                            tot_len), end="")
+            if (i + 1) % batch_print == 0:
+                disp_loss_dis_bce /= batch_print
+                disp_loss_gen_class /= batch_print
+                disp_loss_gen_feat /= batch_print
+                disp_total_loss /= batch_print
+                print(
+                    "\rEpoch: {4}, Batch: {5}/{6} || DIS Loss = {0:.4f}, Gen CLS Loss = {1:.4f}, Gen MSE Loss= {2:.4f}, Total Gen Loss: {3:.4f}    ".format(
+                        disp_loss_dis_bce, disp_loss_gen_class, disp_loss_gen_feat, disp_total_loss, epoch + 1, i + 1,
+                        tot_len), end="")
 
-                    printer.append([epoch, i, disp_loss_dis_bce, disp_loss_gen_class, disp_loss_gen_feat, disp_total_loss])
+                printer.append([epoch, i, disp_loss_dis_bce, disp_loss_gen_class, disp_loss_gen_feat, disp_total_loss])
 
-                    disp_loss_dis_bce = 0
-                    disp_loss_gen_class = 0
-                    disp_loss_gen_feat = 0
-                    disp_total_loss = 0
-            except FileNotFoundError as e:
-                print(i, "EXCEPTION:", e.__cause__)
+                disp_loss_dis_bce = 0
+                disp_loss_gen_class = 0
+                disp_loss_gen_feat = 0
+                disp_total_loss = 0
+            # except FileNotFoundError as e:
+            #     print(i, "EXCEPTION:", e.__cause__)
 
     train_time = time.time()
     if verbose:
@@ -372,11 +351,16 @@ if __name__ == '__main__':
                         action="store_true"
                         )
 
-    parser.add_argument("-a",
-                        "--adv-loss-factor",
+    parser.add_argument("--adv-loss-factor",
                         type=float,
                         default=0.001,
                         help="Factor to determine effect of adversarial loss (default 0.001)"
+                        )
+
+    parser.add_argument("--vgg-loss-factor",
+                        type=float,
+                        default=0.01,
+                        help="Factor to determine effect of content loss from VGG (default 0.01)"
                         )
 
     parser.add_argument("--soft-labels",
