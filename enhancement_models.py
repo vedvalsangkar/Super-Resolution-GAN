@@ -1,4 +1,5 @@
 # https://github.com/jbhuang0604/SelfExSR
+# https://github.com/moskomule/senet.pytorch/blob/master/senet/se_module.py
 
 # import torch
 # import pandas as pd
@@ -16,7 +17,7 @@ from torch import nn  # , optim
 
 class BasicGenBlock(nn.Module):
 
-    def __init__(self, kernel_size=3, stride=1, channels=64, bias=True):
+    def __init__(self, kernel_size=3, stride=1, channels=64, squeeze_factor=2, bias=True):
         super(BasicGenBlock, self).__init__()
 
         self.k_size = kernel_size
@@ -24,7 +25,11 @@ class BasicGenBlock(nn.Module):
         self.stride = stride
         self.bias = bias
 
+        self.squeeze_factor = squeeze_factor
+
         self.channels = channels
+
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
 
         self.layers = nn.Sequential(nn.Conv2d(in_channels=self.channels,
                                               out_channels=self.channels,
@@ -43,13 +48,28 @@ class BasicGenBlock(nn.Module):
                                     nn.BatchNorm2d(self.channels)
                                     )
 
+        self.squeeze_net = nn.Sequential(nn.Linear(in_features=self.channels,
+                                                   out_features=self.channels // self.squeeze_factor,
+                                                   bias=self.bias),
+                                         nn.Linear(in_features=self.channels // self.squeeze_factor,
+                                                   out_features=self.channels,
+                                                   bias=self.bias)
+                                         )
+
     def forward(self, x):
+
         out = self.layers(x)
 
-        return x + out
+        batch_size, channels, _, _ = x.size()
+        sq = self.avg_pool(x).view(batch_size, channels)
+        sq = self.squeeze_net(sq)
+
+        # sq = self.squeeze_net()
+
+        return out * sq.view(batch_size, channels, 1, 1).expand_as(out)
 
 
-class Generator(nn.Module):
+class Generator2(nn.Module):
 
     def __init__(self, init_kernel_size=9, kernel_size=3, stride=1, channels=64, upscale_factor=2, bias=True):
         """
@@ -59,7 +79,7 @@ class Generator(nn.Module):
         :param kernel_size: Convolution kernel size.
         """
 
-        super(Generator, self).__init__()
+        super(Generator2, self).__init__()
 
         self.init_k_size = init_kernel_size
         self.init_padding = self.init_k_size // 2
@@ -187,7 +207,7 @@ class BasicDisBlock(nn.Module):
 
 class Discriminator(nn.Module):
 
-    def __init__(self, image_size=(2048, 1080), bias=False):
+    def __init__(self, image_size=(224, 224), bias=False):
         super(Discriminator, self).__init__()
 
         self.k_size = 3

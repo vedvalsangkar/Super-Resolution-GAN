@@ -187,7 +187,7 @@ class BasicDisBlock(nn.Module):
 
 class Discriminator(nn.Module):
 
-    def __init__(self, image_size=(2048, 1080), bias=False):
+    def __init__(self, image_size=(224, 224), bias=False):
         super(Discriminator, self).__init__()
 
         self.k_size = 3

@@ -12,9 +12,11 @@ from matplotlib import pyplot as plt
 
 import time
 import argparse as ap
+import pandas as pd
 from os import mkdir
 
 from baseline_models import Generator, Discriminator
+from enhancement_models import Generator2
 from datasets import DIVFlickrDataSet
 
 
@@ -24,7 +26,10 @@ def main(input_args):
     verbose = True
     # verbose = input_args.verbose
 
+    use_enhancement = args.enhancement
     use_vgg = args.vgg
+    use_hybrid = args.hybrid
+    use_kl = args.kl
 
     img_size = (224, 224)
 
@@ -39,12 +44,14 @@ def main(input_args):
 
     nll_loss_factor = input_args.adv_loss_factor
 
-    sgd_momentum = 0.3
+    sgd_momentum = 0.1
     sgd_nesterov = False
 
     op_models_dir = "models/"
 
     timestamp = time.strftime("%Y%m%d:%H%M%S")
+
+    offset = 0.1 if args.soft_labels else 0.0
     # ----------------------------------------------------------------------------------
 
     # --------------------------------- Fetching model ---------------------------------
@@ -71,7 +78,10 @@ def main(input_args):
     if verbose:
         print("Dataset and data loaders acquired.")
 
-    gen_4x = Generator(upscale_factor=2, bias=bias).to(device)
+    if use_enhancement:
+        gen_4x = Generator2(upscale_factor=2, bias=bias).to(device)
+    else:
+        gen_4x = Generator(upscale_factor=2, bias=bias).to(device)
     dis = Discriminator(image_size=img_size, bias=bias).to(device)
 
     gen_optim = optim.Adam(params=gen_4x.parameters(),
@@ -92,15 +102,17 @@ def main(input_args):
                           nesterov=sgd_nesterov
                           )
 
-    gen_mse_criterion = nn.MSELoss()
-    # vgg_mse_criterion = nn.MSELoss()
+    if use_kl:
+        gen_content_criterion = nn.KLDivLoss()
+    else:
+        gen_content_criterion = nn.MSELoss()
     # gen_nll_criterion = nn.NLLLoss()
     # dis_criterion = nn.NLLLoss()
     dis_criterion = nn.BCELoss()
 
     if use_vgg:
-        percept_model = models.vgg19(pretrained=True).to(device).features[:-1]
-        percept_model.eval()
+        percept_model = nn.Sequential(models.vgg19(pretrained=True).to(device).features[:-1])
+        percept_model.train(False)
 
     # ----------------------------------------------------------------------------------
 
@@ -140,6 +152,8 @@ def main(input_args):
 
     tot_len = len(train_loader)
 
+    printer = []
+
     for epoch in range(epochs):
 
         if verbose:
@@ -174,7 +188,7 @@ def main(input_args):
                 #
                 sr_output = dis(super_res)
 
-                dis_loss = dis_criterion(sr_output, label_0)
+                dis_loss = dis_criterion(sr_output, label_0 + offset)
                 disp_loss_dis_bce += dis_loss.item()
 
                 dis_loss.backward()
@@ -187,7 +201,7 @@ def main(input_args):
 
                 dis_optim.zero_grad()
 
-                dis_loss = dis_criterion(hr_output, label_1)
+                dis_loss = dis_criterion(hr_output, label_1 - offset)
                 disp_loss_dis_bce += dis_loss.item()
 
                 dis_loss.backward()
@@ -218,9 +232,14 @@ def main(input_args):
                     sr_features = percept_model(super_res)
                     hr_features = percept_model(high_res)
 
-                    gen_feat_loss = gen_mse_criterion(sr_features, hr_features)
+                    gen_feat_loss = gen_content_criterion(sr_features, hr_features)
+
+                    if use_hybrid:
+
+                        gen_feat_loss = 0.01 * gen_feat_loss + gen_content_criterion(super_res, high_res)
+
                 else:
-                    gen_feat_loss = gen_mse_criterion(super_res, high_res)
+                    gen_feat_loss = gen_content_criterion(super_res, high_res)
 
                 disp_loss_gen_feat += gen_feat_loss.item()
 
@@ -248,8 +267,10 @@ def main(input_args):
                     disp_total_loss /= batch_print
                     print(
                         "\rEpoch: {4}, Batch: {5}/{6} || DIS Loss = {0:.4f}, Gen CLS Loss = {1:.4f}, Gen MSE Loss= {2:.4f}, Total Gen Loss: {3:.4f}    ".format(
-                            disp_loss_dis_bce, disp_loss_gen_class, disp_loss_gen_feat, disp_total_loss, epoch, i + 1,
+                            disp_loss_dis_bce, disp_loss_gen_class, disp_loss_gen_feat, disp_total_loss, epoch + 1, i + 1,
                             tot_len), end="")
+
+                    printer.append([epoch, i, disp_loss_dis_bce, disp_loss_gen_class, disp_loss_gen_feat, disp_total_loss])
 
                     disp_loss_dis_bce = 0
                     disp_loss_gen_class = 0
@@ -271,8 +292,13 @@ def main(input_args):
                f=op_models_dir + "file_{0}_{1}.pt".format(timestamp, "VGG" if use_vgg else "RAW")
                )
 
-    op_img_dir = "Output Images/{0}/".format(timestamp)
-    mkdir(op_img_dir)
+    op_dir = "output/{0}_{1}/".format(timestamp, "VGG" if use_vgg else "RAW")
+    mkdir(op_dir)
+
+    pd.DataFrame(data=printer,
+                 columns=["Epoch", "Step", "Discriminator Loss", "Generator Classification Loss",
+                          "Generator MSE Loss", "Generator Loss"]
+                 ).to_csv(path_or_buf=op_dir + "data_{0}.csv".format(timestamp))
 
     for i, (low_res, high_res, name) in enumerate(test_loader):
         output = gen_4x(low_res.to(device))
@@ -280,36 +306,21 @@ def main(input_args):
         image = output.detach().cpu()[0]
         ref = high_res[0]
 
-        # image = np.rollaxis(image, 0, 3)
-        # ref = np.rollaxis(ref, 0, 3)
-
-        # print("IMAGE:", image.shape)
-        # print("REF:", ref.shape)
-
-        # plt.figure()
-        #
-        # plt.subplot(1, 2, 1)
-        # plt.imshow(image)
-        # plt.title('Super Resolution Image')
-        #
-        # plt.subplot(1, 2, 2)
-        # plt.imshow(ref)
-        # plt.title('Original High Resolution Image')
-        #
-        # plt.savefig("Output Images/SR_{0}.jpg".format(name[0]))
-
         save_image(tensor=torch.stack([image, ref]),
-                   filename=op_img_dir+"SR_{0}.jpg".format(name[0]),
+                   filename=op_dir+"SR_{0}.jpg".format(name[0]),
                    nrow=2,
-                   normalize=False)
+                   normalize=False
+                   )
+
         save_image(tensor=image,
-                   filename=op_img_dir + "SR_{0}_SR.jpg".format(name[0]),
-                   nrow=1,
-                   normalize=True)
+                   filename=op_dir + "SR_{0}_SR.jpg".format(name[0]),
+                   nrow=1
+                   )
+
         save_image(tensor=ref,
-                   filename=op_img_dir + "SR_{0}_HR.jpg".format(name[0]),
-                   nrow=1,
-                   normalize=True)
+                   filename=op_dir + "SR_{0}_HR.jpg".format(name[0]),
+                   nrow=1
+                   )
 
 
 if __name__ == '__main__':
@@ -347,7 +358,7 @@ if __name__ == '__main__':
                         "--weight-decay",
                         type=float,
                         default=0,
-                        help="Learning rate decay (default 0)"
+                        help="L2 Norm (default 0)"
                         )
 
     parser.add_argument("-v",
@@ -366,6 +377,26 @@ if __name__ == '__main__':
                         type=float,
                         default=0.001,
                         help="Factor to determine effect of adversarial loss (default 0.001)"
+                        )
+
+    parser.add_argument("--soft-labels",
+                        help="Use 0.9 and 0.1 instead of 1 and 0 resp. to introduce noise in discriminator",
+                        action="store_true"
+                        )
+
+    parser.add_argument("--hybrid",
+                        help="Use both image and feature MSE losses",
+                        action="store_true"
+                        )
+
+    parser.add_argument("--enhancement",
+                        help="Use enhanced model (with squeeze and excitation model) instead",
+                        action="store_true"
+                        )
+
+    parser.add_argument("--kl",
+                        help="Use KL divergence loss instead",
+                        action="store_true"
                         )
 
     args = parser.parse_args()
