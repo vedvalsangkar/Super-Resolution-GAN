@@ -44,7 +44,7 @@ def main(input_args):
 
     op_models_dir = "models/"
 
-    timestamp = time.strftime("%Y%M%d:%H%M%S")
+    timestamp = time.strftime("%Y%m%d:%H%M%S")
     # ----------------------------------------------------------------------------------
 
     # --------------------------------- Fetching model ---------------------------------
@@ -99,7 +99,7 @@ def main(input_args):
     dis_criterion = nn.BCELoss()
 
     if use_vgg:
-        percept_model = models.vgg19(pretrained=True).to(device).features
+        percept_model = models.vgg19(pretrained=True).to(device).features[:-1]
         percept_model.eval()
 
     # ----------------------------------------------------------------------------------
@@ -301,6 +301,14 @@ def main(input_args):
         save_image(tensor=torch.stack([image, ref]),
                    filename=op_img_dir+"SR_{0}.jpg".format(name[0]),
                    nrow=2,
+                   normalize=False)
+        save_image(tensor=image,
+                   filename=op_img_dir + "SR_{0}_SR.jpg".format(name[0]),
+                   nrow=1,
+                   normalize=True)
+        save_image(tensor=ref,
+                   filename=op_img_dir + "SR_{0}_HR.jpg".format(name[0]),
+                   nrow=1,
                    normalize=True)
 
 
