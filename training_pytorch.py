@@ -18,6 +18,12 @@ from datasets import DIVFlickrDataSet
 
 
 def main(input_args):
+    """
+    Main function.
+
+    :param input_args: Commandline inputs
+    :return: N/A
+    """
     # -------------------------------- Hyper-parameters --------------------------------
 
     # verbose = True
@@ -46,9 +52,9 @@ def main(input_args):
     sgd_momentum = 0.1
     sgd_nesterov = False
 
-    op_models_dir = "models/"
-
     timestamp = time.strftime("%Y%m%d:%H%M%S")
+    op_dir = "output/{0}_{1}/".format(timestamp, "VGG" if use_vgg else "RAW")
+    op_models_dir = "models/"
 
     offset = 0.1 if args.soft_labels else 0.0
     # ----------------------------------------------------------------------------------
@@ -271,7 +277,6 @@ def main(input_args):
                f=op_models_dir + "file_{0}_{1}.pt".format(timestamp, "VGG" if use_vgg else "RAW")
                )
 
-    op_dir = "output/{0}_{1}/".format(timestamp, "VGG" if use_vgg else "RAW")
     mkdir(op_dir)
 
     pd.DataFrame(data=printer,
@@ -303,6 +308,7 @@ def main(input_args):
 
 
 if __name__ == '__main__':
+
     parser = ap.ArgumentParser()
 
     parser.add_argument("-b",

@@ -32,7 +32,7 @@ op_dir = "output/{0}_{1}/".format(timestamp, "VGG" if use_vgg else "RAW")
 
 os.mkdir(op_dir)
 
-data = torch.load("")
+data = torch.load("models/gen_model.pt")
 
 gen_4x.load_state_dict(data["generator"])
 

@@ -20,6 +20,9 @@ class TemplateDataSet(Dataset):
 
 
 class DIVFlickrDataSet(Dataset):
+    """
+    Custom dataset class designed to handle 2 datasets, DIV2k and Flickr2k.
+    """
 
     def __init__(self, root_folder, lr_transform=transforms.ToTensor(), hr_transform=transforms.ToTensor(), test_mode=False):
         self.root_image_folder = root_folder   # Data/DIV_Flickr/train/
@@ -70,7 +73,40 @@ class DIVFlickrDataSet(Dataset):
         return self.length
 
 
+class ValidDataSet(Dataset):
+    """
+    Custom dataset class designed to handle 2 datasets, DIV2k and Flickr2k.
+    """
+
+    def __init__(self, root_folder, lr_transform=transforms.ToTensor(), hr_transform=transforms.ToTensor(), test_mode=False):
+        self.root_image_folder = root_folder   # Data/DIV_Flickr/train/
+
+        self.lr_transform = lr_transform
+        self.hr_transform = hr_transform
+
+        self.main_df = pd.DataFrame(data={"LD": sorted(os.listdir(self.root_image_folder))})
+
+        self.length = self.main_df.shape[0]
+
+    def __getitem__(self, item):
+
+        row = self.main_df.iloc[item]
+
+        try:
+            low_res = Image.open(row["LD"])
+            filename = os.path.splitext(os.path.basename(row["LD"]))
+            return self.lr_transform(low_res), filename
+        except FileNotFoundError:
+            print("File not found:", row)
+
+    def __len__(self):
+        return self.length
+
+
 class Set5DataSet(Dataset):
+    """
+    Sample dataset for practice. Built on Set5.
+    """
 
     def __init__(self, im_set=2, lr_transform=transforms.ToTensor(), hr_transform=transforms.ToTensor()):
 
