@@ -10,22 +10,16 @@ from Network import Generator, Discriminator
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 from keras.applications.vgg19 import VGG19
-from keras.layers.convolutional import UpSampling2D
 from keras.models import Model
-from keras.optimizers import SGD, Adam, RMSprop
-import keras
+from keras.optimizers import Adam
 import keras.backend as K
-from keras.layers import Lambda, Input
-import tensorflow as tf
-import skimage.transform
-from skimage import data, io, filters
+from keras.layers import Input
+from skimage import data
 import numpy as np
 from numpy import array
-from skimage.transform import rescale, resize
+from skimage.transform import resize
 from scipy.misc import imresize
 import os
-from PIL import Image
-import pandas as pd
 
 np.random.seed(10)
 image_shape = (224,224,3)

@@ -29,12 +29,12 @@ def main(input_args):
     # verbose = True
     verbose = input_args.verbose
 
-    use_enhancement = args.enhancement
+    use_enhancement = input_args.enhancement
     use_vgg = args.vgg
     use_hybrid = args.hybrid
     use_kl = args.kl
 
-    vgg_loss_factor = 0.01
+    vgg_loss_factor = input_args.vgg_loss_factor
 
     img_size = (224, 224)
 
@@ -104,6 +104,7 @@ def main(input_args):
         gen_content_criterion = nn.MSELoss()
 
     dis_criterion = nn.BCELoss()
+    # dis_criterion = nn.BCEWithLogitsLoss()
 
     if use_vgg:
         percept_model = nn.Sequential(models.vgg19(pretrained=True).to(device).features[:-1])

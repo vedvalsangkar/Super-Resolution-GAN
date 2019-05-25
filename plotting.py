@@ -1,7 +1,7 @@
 import pandas as pd
 from matplotlib import pyplot as plt
 
-data = pd.read_csv(filepath_or_buffer="output/20190513:194812_VGG/data_20190513:194812.csv",
+data = pd.read_csv(filepath_or_buffer="output/20190516:051701_VGG/data_20190516:051701.csv",
                    header=0,
                    index_col=0
                    ).drop(["Epoch", "Step"], axis=1)
