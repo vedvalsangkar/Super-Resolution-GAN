@@ -1,6 +1,6 @@
 # Super Resolution GAN
-####Project 3
-######CSE674: Advanced Machine Learning
+#### Project 3
+###### CSE674: Advanced Machine Learning
 
 Implementation of Super Resolution GAN for CSE674: Advanced Machine Learning. This project was implemented as Project 3 
 by [Ved Harish Valsangkar](https://github.com/vedvalsangkar) \(Me) and [Shubhra Deshpande](https://github.com/ShubhraDeshpande).
